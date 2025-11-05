@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       NG1 Thais Calendar
  * Description:       Intégration du calendrier/moteur de réservation Thais via shortcode avec options Back-Office.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Author:            NG1
  * License:           GPL v2 or later
  * Text Domain:       ng1-thais
