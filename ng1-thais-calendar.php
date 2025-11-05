@@ -21,6 +21,8 @@ function ng1_thais_get_defaults() {
         'widget_script_src'        => '',
         'widget_instance'          => '',
         'widget_lang'              => 'fr',
+        'reservation_url'          => '',
+        'reservation_label'        => __( 'Réserver', 'ng1-thais' ),
     ];
 
     $saved = get_option( NG1_THAIS_DEFAULTS_OPTION, [] );
@@ -37,6 +39,10 @@ function ng1_thais_get_defaults() {
 
     if ( '' === $options['widget_script_src'] && '' !== $options['widget_instance'] ) {
         $options['widget_script_src'] = sprintf( 'https://%s.thais-hotel.com/direct-booking/widget/thais_widget.js', $options['widget_instance'] );
+    }
+
+    if ( '' === $options['reservation_label'] ) {
+        $options['reservation_label'] = __( 'Réserver', 'ng1-thais' );
     }
 
     return $options;
@@ -81,6 +87,8 @@ function ng1_thais_register_settings() {
         $sanitized['widget_script_src']        = esc_url_raw( $input['widget_script_src'] ?? $defaults['widget_script_src'] );
         $sanitized['widget_instance']          = sanitize_text_field( $input['widget_instance'] ?? $defaults['widget_instance'] );
         $sanitized['widget_lang']              = sanitize_text_field( $input['widget_lang'] ?? $defaults['widget_lang'] );
+        $sanitized['reservation_url']          = esc_url_raw( $input['reservation_url'] ?? $defaults['reservation_url'] );
+        $sanitized['reservation_label']        = sanitize_text_field( $input['reservation_label'] ?? $defaults['reservation_label'] );
 
         return $sanitized;
     } );
@@ -89,8 +97,8 @@ add_action( 'admin_init', 'ng1_thais_register_settings' );
 
 function ng1_thais_register_help_page() {
     add_options_page(
-        __( 'NG1 Thais – Aide', 'ng1-thais' ),
-        __( 'NG1 Thais', 'ng1-thais' ),
+        __( 'Thais Calendar – Aide', 'ng1-thais' ),
+        __( 'Thais Calendar', 'ng1-thais' ),
         'manage_options',
         'ng1-thais-help',
         'ng1_thais_render_help_page'
@@ -153,9 +161,14 @@ function ng1_thais_render_help_page() {
   nb_months_mobile="1"
   promo="HIVER10"]';
 
+    $reservation_button_example = '[ng1_thais_reservation_button
+  url="https://MON_INSTANCE.thais-hotel.com/direct-booking/"
+  label="Réserver maintenant"
+  target="_blank"]';
+
     ?>
     <div class="wrap">
-        <h1><?php esc_html_e( 'NG1 Thais – Guide d’utilisation', 'ng1-thais' ); ?></h1>
+        <h1><?php esc_html_e( 'Thais Calendar – Guide d’utilisation', 'ng1-thais' ); ?></h1>
 
         <h2><?php esc_html_e( 'Valeurs par défaut (appliquées si les shortcodes ne précisent pas ces attributs)', 'ng1-thais' ); ?></h2>
         <form method="post" action="options.php" style="margin-bottom:2rem;">
@@ -180,6 +193,14 @@ function ng1_thais_render_help_page() {
                 <tr>
                     <th scope="row"><label for="ng1_thais_widget_lang"><?php esc_html_e( 'Langue (widget)', 'ng1-thais' ); ?></label></th>
                     <td><input type="text" class="regular-text" id="ng1_thais_widget_lang" name="<?php echo esc_attr( NG1_THAIS_DEFAULTS_OPTION ); ?>[widget_lang]" value="<?php echo esc_attr( $defaults['widget_lang'] ); ?>" placeholder="fr"></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ng1_thais_reservation_url"><?php esc_html_e( 'URL réservation (bouton)', 'ng1-thais' ); ?></label></th>
+                    <td><input type="url" class="regular-text" id="ng1_thais_reservation_url" name="<?php echo esc_attr( NG1_THAIS_DEFAULTS_OPTION ); ?>[reservation_url]" value="<?php echo esc_attr( $defaults['reservation_url'] ); ?>" placeholder="https://MON_INSTANCE.thais-hotel.com/direct-booking/"></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ng1_thais_reservation_label"><?php esc_html_e( 'Texte bouton réservation', 'ng1-thais' ); ?></label></th>
+                    <td><input type="text" class="regular-text" id="ng1_thais_reservation_label" name="<?php echo esc_attr( NG1_THAIS_DEFAULTS_OPTION ); ?>[reservation_label]" value="<?php echo esc_attr( $defaults['reservation_label'] ); ?>" placeholder="<?php esc_attr_e( 'Réserver', 'ng1-thais' ); ?>"></td>
                 </tr>
             </table>
             <?php submit_button(); ?>
@@ -211,10 +232,15 @@ function ng1_thais_render_help_page() {
         <textarea readonly rows="15" style="width:100%; font-family: monospace;"><?php echo esc_textarea( $widget_form_example ); ?></textarea>
         <p><?php esc_html_e( 'Les champs du formulaire sont pré-remplis avec les valeurs par défaut et peuvent être ajustés avant d’afficher le widget.', 'ng1-thais' ); ?></p>
 
+        <h2><?php esc_html_e( 'Shortcode bouton de réservation', 'ng1-thais' ); ?></h2>
+        <p><?php esc_html_e( 'Affiche un bouton simple pointant vers votre moteur de réservation. Le lien et l’intitulé peuvent être définis ici ou via les attributs du shortcode.', 'ng1-thais' ); ?></p>
+        <textarea readonly rows="7" style="width:100%; font-family: monospace;"><?php echo esc_textarea( $reservation_button_example ); ?></textarea>
+        <p><?php esc_html_e( 'Par défaut, le lien et le texte proviennent des réglages ci-dessus. Utilisez ce shortcode pour placer un CTA « Réserver » rapide.', 'ng1-thais' ); ?></p>
+
         <h2><?php esc_html_e( 'Notes', 'ng1-thais' ); ?></h2>
         <ul>
             <li><?php esc_html_e( 'Les fonctions WordPress utilisées (shortcode_atts, wp_enqueue_script, etc.) sont natives : les avertissements IDE peuvent être ignorés.', 'ng1-thais' ); ?></li>
-            <li><?php esc_html_e( 'Aucune page d’options n’est créée : tout se configure via les shortcodes.', 'ng1-thais' ); ?></li>
+            <li><?php esc_html_e( 'Les réglages par défaut se gèrent depuis cette page pour éviter de répéter les mêmes attributs.', 'ng1-thais' ); ?></li>
             <li><?php esc_html_e( 'Vous pouvez personnaliser le style du widget via vos propres CSS si besoin.', 'ng1-thais' ); ?></li>
         </ul>
     </div>
@@ -676,3 +702,30 @@ function ng1_thais_shortcode_widget_form( $atts ) {
     return ob_get_clean();
 }
 add_shortcode( 'ng1_thais_widget_form', 'ng1_thais_shortcode_widget_form' );
+
+/**
+ * Shortcode: [ng1_thais_reservation_button]
+ * Renders a simple reservation button using defaults as fallback.
+ */
+function ng1_thais_shortcode_reservation_button( $atts ) {
+    $defaults = ng1_thais_get_defaults();
+
+    $atts = shortcode_atts( [
+        'url'    => $defaults['reservation_url'],
+        'label'  => $defaults['reservation_label'],
+        'target' => '_self',
+        'class'  => 'ng1-thais-button',
+    ], $atts, 'ng1_thais_reservation_button' );
+
+    $url = esc_url( $atts['url'] );
+    if ( '' === $url ) {
+        return '<div class="ng1-thais-error">' . esc_html__( 'Erreur : veuillez définir l’URL de réservation (Réglages → NG1 Thais).', 'ng1-thais' ) . '</div>';
+    }
+
+    $label  = $atts['label'] !== '' ? esc_html( $atts['label'] ) : esc_html( $defaults['reservation_label'] );
+    $target = in_array( $atts['target'], [ '_self', '_blank' ], true ) ? $atts['target'] : '_self';
+    $class  = sanitize_html_class( $atts['class'], 'ng1-thais-button' );
+
+    return '<div class="ng1-thais-reservation"><a class="' . esc_attr( $class ) . '" href="' . $url . '" target="' . esc_attr( $target ) . '" rel="nofollow noopener">' . $label . '</a></div>';
+}
+add_shortcode( 'ng1_thais_reservation_button', 'ng1_thais_shortcode_reservation_button' );
