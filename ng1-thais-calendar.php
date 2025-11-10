@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       NG1 Thais Calendar
  * Description:       Intégration du calendrier/moteur de réservation Thais via shortcode avec options Back-Office.
- * Version:           1.3.0
+ * Version:           1.3.1
  * Author:            NG1
  * License:           GPL v2 or later
  * Text Domain:       ng1-thais
@@ -590,8 +590,12 @@ add_shortcode( 'ng1_thais_widget', 'ng1_thais_shortcode_widget' );
  * - target  (_self|_blank, only for tag="a")
  * - class   (extra classes)
  * - popup-id (cible un widget pop-up spécifique)
+ * - show-icon (true|false) pour afficher ou non l’icône SVG
+ * - unstyled (true|false) pour retirer les classes/styles par défaut
  */
 function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
+    $raw_atts = is_array( $atts ) ? $atts : [];
+
     $atts = shortcode_atts( [
         'label'  => __( 'Voir les disponibilités', 'ng1-thais' ),
         'variant'=> 'black',
@@ -600,10 +604,16 @@ function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
         'target' => '_self',
         'class'  => '',
         'popup-id' => '',
+        'show-icon' => 'true',
+        'unstyled'  => 'false',
     ], $atts, 'ng1_thais_widget_trigger' );
 
-    $label = null !== $content ? trim( wp_kses_post( $content ) ) : trim( wp_kses_post( $atts['label'] ) );
-    if ( '' === $label ) {
+    $content_label = null !== $content ? trim( wp_kses_post( $content ) ) : '';
+    $label = '' !== $content_label ? $content_label : trim( wp_kses_post( $atts['label'] ) );
+
+    $label_attr_provided = array_key_exists( 'label', $raw_atts );
+
+    if ( '' === $label && ! $label_attr_provided && '' === $content_label ) {
         $label = __( 'Voir les disponibilités', 'ng1-thais' );
     }
 
@@ -617,13 +627,27 @@ function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
         $tag = 'button';
     }
 
-    $classes = 'open-disponibilite open-disponibilité ng1-thais-trigger ng1-thais-trigger--' . $variant;
+    $show_icon = ! in_array( strtolower( (string) $atts['show-icon'] ), [ '0', 'false', 'no', 'off' ], true );
+    $unstyled  = in_array( strtolower( (string) $atts['unstyled'] ), [ '1', 'true', 'yes', 'on' ], true );
+
+    $classes = [];
+    if ( ! $unstyled ) {
+        $classes = [
+            'open-disponibilite',
+            'open-disponibilité',
+            'ng1-thais-trigger',
+            'ng1-thais-trigger--' . $variant,
+        ];
+    }
+
     if ( '' !== $atts['class'] ) {
         $extra = array_filter( array_map( 'sanitize_html_class', preg_split( '/\s+/', (string) $atts['class'] ) ) );
         if ( ! empty( $extra ) ) {
-            $classes .= ' ' . implode( ' ', $extra );
+            $classes = array_merge( $classes, $extra );
         }
     }
+
+    $classes = array_unique( array_filter( $classes ) );
 
     $popup_slug = sanitize_key( $atts['popup-id'] );
     if ( '' === $popup_slug && '' !== $atts['popup-id'] ) {
@@ -640,7 +664,7 @@ function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
 
     static $style_printed = false;
     $html = '';
-    if ( ! $style_printed ) {
+    if ( ! $unstyled && ! $style_printed ) {
         $style_printed = true;
         $html .= '<style>
         .ng1-thais-trigger{display:inline-flex;align-items:center;gap:0.65rem;padding:0.75rem 1.5rem;border-radius:999px;font-weight:600;text-decoration:none;cursor:pointer;border:1px solid currentColor;transition:all .2s ease;color:#111;background:#fff;}
@@ -656,17 +680,33 @@ function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
     }
 
     $icon_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="9 15 11.5 17.5 15 14"></polyline></svg>';
+    if ( $unstyled ) {
+        $inner_html = '';
+        if ( $show_icon ) {
+            $inner_html .= $icon_svg . ' ';
+        }
+        $inner_html .= $label;
+    } else {
+        $inner_html = '';
+        if ( $show_icon ) {
+            $inner_html .= '<span class="ng1-thais-trigger__icon">' . $icon_svg . '</span>';
+        }
+        $inner_html .= '<span class="ng1-thais-trigger__label">' . $label . '</span>';
+    }
 
-    $inner_html = '<span class="ng1-thais-trigger__icon">' . $icon_svg . '</span><span class="ng1-thais-trigger__label">' . $label . '</span>';
+    $class_attr = '';
+    if ( ! empty( $classes ) ) {
+        $class_attr = ' class="' . esc_attr( implode( ' ', $classes ) ) . '"';
+    }
 
     if ( 'button' === $tag ) {
-        $html .= '<button type="button" class="' . esc_attr( $classes ) . '"' . $target_attr . '>' . $inner_html . '</button>';
+        $html .= '<button type="button"' . $class_attr . $target_attr . '>' . $inner_html . '</button>';
     } elseif ( 'a' === $tag ) {
         $rel = '_blank' === $target ? ' rel="noopener noreferrer"' : '';
         $href = $url ? $url : '#';
-        $html .= '<a href="' . esc_url( $href ) . '" target="' . esc_attr( $target ) . '"' . $rel . ' class="' . esc_attr( $classes ) . '" role="button"' . $target_attr . '>' . $inner_html . '</a>';
+        $html .= '<a href="' . esc_url( $href ) . '" target="' . esc_attr( $target ) . '"' . $rel . $class_attr . ' role="button"' . $target_attr . '>' . $inner_html . '</a>';
     } else {
-        $html .= '<div class="' . esc_attr( $classes ) . '" role="button" tabindex="0"' . $target_attr . '>' . $inner_html . '</div>';
+        $html .= '<div' . $class_attr . ' role="button" tabindex="0"' . $target_attr . '>' . $inner_html . '</div>';
     }
 
     return $html;

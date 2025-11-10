@@ -97,7 +97,7 @@ Les paramètres non fournis ne sont pas ajoutés à la balise et conservent leur
 
 ### Mode pop-up & triggers personnalisés
 
-Depuis la version **1.3.0**, le widget peut s’ouvrir dans une pop-up modale accessible via boutons, liens ou ancres :
+Depuis la version **1.3.x**, le widget peut s’ouvrir dans une pop-up modale accessible via boutons, liens ou ancres :
 
 ```
 [ng1_thais_widget open-in-popup="true" popup-id="suite" id_room_auto="true"]
@@ -110,6 +110,7 @@ Depuis la version **1.3.0**, le widget peut s’ouvrir dans une pop-up modale ac
 - Le script JS `assets/js/ng1-thais-popup.js` gère l’ouverture/fermeture, ferme les autres popups et supporte les ancres.  
 - Les liens `href="#thais-popup=slug"` ouvrent directement la modale correspondante, y compris au chargement de page (hash initial ou changement d’ancre).  
 - Les éléments `.open-disponibilite` existants continuent de fonctionner en fallback.
+- Les shortcodes trigger (version **1.3.1**) acceptent `show-icon="false"` pour masquer l’icône SVG, `unstyled="true"` pour retirer les classes/styles par défaut, et `label=""` pour produire un déclencheur sans texte (ou pour laisser uniquement un contenu personnalisé).
 
 L’attribut `id_room_auto="true"` permet, sur un CPT `chambres`, de remplir automatiquement `id_room_type` à partir du champ ACF/meta `thais_id`. Les valeurs vides ou `0` sont ignorées pour éviter les IDs invalides.
 
