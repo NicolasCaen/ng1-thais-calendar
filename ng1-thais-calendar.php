@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       NG1 Thais Calendar
  * Description:       Intégration du calendrier/moteur de réservation Thais via shortcode avec options Back-Office.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Author:            NG1
  * License:           GPL v2 or later
  * Text Domain:       ng1-thais
@@ -11,6 +11,15 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+
+function ng1_thais_register_front_assets() {
+    $script_rel = 'assets/js/ng1-thais-popup.js';
+    $script_url = plugin_dir_url( __FILE__ ) . $script_rel;
+    $script_path = plugin_dir_path( __FILE__ ) . $script_rel;
+    $ver = file_exists( $script_path ) ? (string) filemtime( $script_path ) : '1.0.0';
+    wp_register_script( 'ng1-thais-popup', $script_url, [], $ver, true );
+}
+add_action( 'wp_enqueue_scripts', 'ng1_thais_register_front_assets' );
 
 const NG1_THAIS_DEFAULTS_OPTION = 'ng1_thais_defaults';
 
@@ -403,9 +412,11 @@ add_shortcode( 'ng1_thais_calendar', 'ng1_thais_shortcode_calendar' );
  * - lang, width, height
  * - nb_persons (total), nb_adults, nb_children, nb_infants
  * - id_room_type, id_rate
+ * - id_room_auto (true|false) pour récupérer automatiquement l'ID de chambre depuis le CPT 'chambres' via ACF 'id_thais'
  * - mode (line|grid), auto_search (true|false), open (ex: pop-up)
  * - nb_months, nb_months_mobile
  * - promo
+ * - open-in-popup (true|false), popup-id (slug commun avec les triggers)
  */
 function ng1_thais_shortcode_widget( $atts ) {
     $defaults = ng1_thais_get_defaults();
@@ -421,6 +432,7 @@ function ng1_thais_shortcode_widget( $atts ) {
         'nb_children'      => '',
         'nb_infants'       => '',
         'id_room_type'     => '',
+        'id_room_auto'     => 'false',
         'id_rate'          => '',
         'mode'             => '',
         'auto_search'      => '',
@@ -429,6 +441,7 @@ function ng1_thais_shortcode_widget( $atts ) {
         'nb_months_mobile' => '',
         'promo'            => '',
         'open-in-popup'    => 'false',
+        'popup-id'         => '',
     ], $atts, 'ng1_thais_widget' );
 
     $script = trim( (string) $atts['script_src'] );
@@ -452,9 +465,40 @@ function ng1_thais_shortcode_widget( $atts ) {
         wp_enqueue_script( $handle );
     }
 
-    $container_id = 'ng1-thais-widget-' . wp_rand( 1000, 9999 );
-    $popup_id     = 'ng1-thais-popup-' . wp_rand( 1000, 9999 );
-    $overlay_id   = 'ng1-thais-overlay-' . wp_rand( 1000, 9999 );
+    $popup_slug = sanitize_key( $atts['popup-id'] );
+    if ( '' === $popup_slug && '' !== $atts['popup-id'] ) {
+        $popup_slug = sanitize_title( $atts['popup-id'] );
+    }
+    if ( '' === $popup_slug ) {
+        $popup_slug = (string) wp_rand( 1000, 9999 );
+    }
+
+    $container_id = 'ng1-thais-widget-' . $popup_slug;
+    $popup_id     = 'ng1-thais-popup-' . $popup_slug;
+    $overlay_id   = 'ng1-thais-overlay-' . $popup_slug;
+
+    // Auto-resolve id_room_type from current CPT if requested
+    $id_room_auto = strtolower( (string) $atts['id_room_auto'] );
+    if ( in_array( $id_room_auto, [ '1', 'true', 'yes' ], true ) ) {
+        global $post;
+        $post_id = is_object( $post ) ? (int) $post->ID : 0;
+        $post_type = $post_id ? get_post_type( $post_id ) : '';
+        if ( $post_id && 'chambres' === $post_type ) {
+            $resolved = '';
+            if ( function_exists( 'get_field' ) ) {
+                $resolved = (string) get_field( 'thais_id', $post_id );
+            }
+            if ( '' === trim( $resolved ) ) {
+                $resolved = (string) get_post_meta( $post_id, 'thais_id', true );
+            }
+            $resolved = trim( $resolved );
+            if ( '' !== $resolved && ! in_array( $resolved, [ '0', 0 ], true ) ) {
+                $atts['id_room_type'] = $resolved;
+            } else {
+                $atts['id_room_type'] = '';
+            }
+        }
+    }
 
     // Build data attributes
     $data_attrs = [
@@ -488,13 +532,23 @@ function ng1_thais_shortcode_widget( $atts ) {
     $open_in_popup = strtolower( (string) $atts['open-in-popup'] );
 
     if ( in_array( $open_in_popup, [ '1', 'true', 'yes' ], true ) ) {
-        $plugin_url = trailingslashit( plugin_dir_url( __FILE__ ) );
+        global $ng1_thais_registered_popups;
+        if ( ! is_array( $ng1_thais_registered_popups ) ) {
+            $ng1_thais_registered_popups = [];
+        }
+        $ng1_thais_registered_popups[ $popup_slug ] = true;
+
+        wp_enqueue_script( 'ng1-thais-popup' );
+        wp_localize_script( 'ng1-thais-popup', 'ng1ThaisPopupData', [
+            'slugs' => array_keys( $ng1_thais_registered_popups ),
+        ] );
+
         $html  = '';
         $html .= '<style>
-        .ng1-thais-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:9998}
-        .ng1-thais-popup{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:9999; width:fit-content;}
-        .ng1-thais-popup-inner{background:#fff;max-width:980px;width:90%;max-height:90vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:auto;padding:12px}
-        .ng1-thais-popup-close{position:absolute;top:10px;right:12px;background:transparent;border:0;cursor:pointer}
+        .ng1-thais-overlay{position:fixed;inset:0;    background: #3F645E;opacity:.9;display:none;z-index:9998}
+        .ng1-thais-popup{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:9999; width:fit-content; margin:0 auto}
+        .ng1-thais-popup-inner{position:relative;background:#fff;max-width:980px;width:90%;max-height:90vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:auto;padding:12px}
+        .ng1-thais-popup-close{z-index:10;position:absolute;top:10px;right:12px;background:transparent;border:0;cursor:pointer}
         .ng1-thais-popup-close svg{width:22px;height:22px}
         </style>';
         $html .= '<div id="' . esc_attr( $overlay_id ) . '" class="ng1-thais-overlay" aria-hidden="true"></div>';
@@ -503,28 +557,12 @@ function ng1_thais_shortcode_widget( $atts ) {
         $html .= '    <button type="button" class="ng1-thais-popup-close" aria-label="Fermer">'
               . '      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
               . '    </button>';
-        $html .= '    <div id="' . esc_attr( $container_id ) . '" class="thais_calendar_widget" data-widget="calendar"';
+        $html .= '    <div id="' . esc_attr( $container_id ) . '" class="thais_calendar_widget" data-widget="calendar" data-ng1-thais-popup="' . esc_attr( $popup_slug ) . '"';
         if ( $width_attr !== '' ) { $html .= ' width="' . $width_attr . '"'; }
         if ( $height_attr !== '' ) { $html .= ' height="' . $height_attr . '"'; }
         $html .= $attr_html . '></div>';
         $html .= '  </div>';
         $html .= '</div>';
-        $html .= '<script>(function(){
-          var popup=document.getElementById(' . wp_json_encode( $popup_id ) . ');
-          var overlay=document.getElementById(' . wp_json_encode( $overlay_id ) . ');
-          if(!popup||!overlay){return;}
-          function isVisible(){return popup.style.display==="flex";}
-          function open(){popup.style.display="flex"; overlay.style.display="block";}
-          function close(){popup.style.display="none"; overlay.style.display="none";}
-          function toggle(){ if(isVisible()){ close(); } else { open(); } }
-          document.addEventListener("click",function(e){
-            var t=e.target;
-            var trigger = (t.closest && (t.closest(".open-disponibilite") || t.closest(".open-disponibilité")));
-            if(trigger){ e.preventDefault(); toggle(); return; }
-            if(t.closest && (t.closest(".ng1-thais-popup-close") || t===overlay)){ close(); }
-          });
-          document.addEventListener("keydown",function(e){ if(e.key==="Escape"){ close(); } });
-        })();</script>';
         return $html;
     }
 
@@ -551,6 +589,7 @@ add_shortcode( 'ng1_thais_widget', 'ng1_thais_shortcode_widget' );
  * - url     (only for tag="a")
  * - target  (_self|_blank, only for tag="a")
  * - class   (extra classes)
+ * - popup-id (cible un widget pop-up spécifique)
  */
 function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
     $atts = shortcode_atts( [
@@ -560,6 +599,7 @@ function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
         'url'    => '#',
         'target' => '_self',
         'class'  => '',
+        'popup-id' => '',
     ], $atts, 'ng1_thais_widget_trigger' );
 
     $label = null !== $content ? trim( wp_kses_post( $content ) ) : trim( wp_kses_post( $atts['label'] ) );
@@ -583,6 +623,16 @@ function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
         if ( ! empty( $extra ) ) {
             $classes .= ' ' . implode( ' ', $extra );
         }
+    }
+
+    $popup_slug = sanitize_key( $atts['popup-id'] );
+    if ( '' === $popup_slug && '' !== $atts['popup-id'] ) {
+        $popup_slug = sanitize_title( $atts['popup-id'] );
+    }
+
+    $target_attr = '';
+    if ( '' !== $popup_slug ) {
+        $target_attr = ' data-ng1-thais-target="' . esc_attr( $popup_slug ) . '"';
     }
 
     $url    = esc_url( $atts['url'] );
@@ -610,14 +660,13 @@ function ng1_thais_shortcode_widget_trigger( $atts, $content = null ) {
     $inner_html = '<span class="ng1-thais-trigger__icon">' . $icon_svg . '</span><span class="ng1-thais-trigger__label">' . $label . '</span>';
 
     if ( 'button' === $tag ) {
-        $html .= '<button type="button" class="' . esc_attr( $classes ) . '">' . $inner_html . '</button>';
+        $html .= '<button type="button" class="' . esc_attr( $classes ) . '"' . $target_attr . '>' . $inner_html . '</button>';
     } elseif ( 'a' === $tag ) {
         $rel = '_blank' === $target ? ' rel="noopener noreferrer"' : '';
         $href = $url ? $url : '#';
-        $html .= '<a href="' . esc_url( $href ) . '" target="' . esc_attr( $target ) . '"' . $rel . ' class="' . esc_attr( $classes ) . '" role="button">' . $inner_html . '</a>';
+        $html .= '<a href="' . esc_url( $href ) . '" target="' . esc_attr( $target ) . '"' . $rel . ' class="' . esc_attr( $classes ) . '" role="button"' . $target_attr . '>' . $inner_html . '</a>';
     } else {
-        $html .= '<div class="' . esc_attr( $classes ) . '" role="button" tabindex="0">' . $inner_html . '</div>';
-        $html .= '<script>(function(){var last=document.currentScript.previousElementSibling;if(!last){return;}last.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();last.click();}});})();</script>';
+        $html .= '<div class="' . esc_attr( $classes ) . '" role="button" tabindex="0"' . $target_attr . '>' . $inner_html . '</div>';
     }
 
     return $html;

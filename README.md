@@ -85,13 +85,33 @@ Injecte le widget calendrier officiel Thaïs via le script fourni par Thaïs. Le
 | `width` / `height` | Attributs `width` et `height` appliqués sur le conteneur.                       |
 | `nb_persons`, `nb_adults`, `nb_children`, `nb_infants` | Valeurs numériques pour les `data-*`.       |
 | `id_room_type`, `id_rate` | IDs filtrant un type de chambre ou tarif.                               |
+| `id_room_auto`    | `true` pour récupérer automatiquement l'ID de chambre (ACF/meta `thais_id`) sur le CPT `chambres`. |
 | `mode`           | `line` ou `grid`.                                                                 |
 | `auto_search`    | `true`/`false`. Lance la recherche automatiquement au second clic.               |
 | `open`           | Mode d’ouverture (`pop-up`, par exemple).                                        |
+| `open-in-popup`, `popup-id` | Active un rendu en pop-up modale, identifié par un slug partagé avec les triggers. |
 | `nb_months`, `nb_months_mobile` | Nombre de mois sur desktop / mobile.                              |
 | `promo`          | Code promotionnel.                                                                |
 
 Les paramètres non fournis ne sont pas ajoutés à la balise et conservent leur comportement par défaut côté Thaïs. Plusieurs shortcodes peuvent utiliser le même `script_src` : le script n’est chargé qu’une seule fois.
+
+### Mode pop-up & triggers personnalisés
+
+Depuis la version **1.3.0**, le widget peut s’ouvrir dans une pop-up modale accessible via boutons, liens ou ancres :
+
+```
+[ng1_thais_widget open-in-popup="true" popup-id="suite" id_room_auto="true"]
+[ng1_thais_widget_trigger label="Voir la suite" popup-id="suite"]
+
+[ng1_thais_widget open-in-popup="true" popup-id="famille" id_room_type="2"]
+[ng1_thais_widget_trigger label="Voir la chambre famille" popup-id="famille"]
+```
+
+- Le script JS `assets/js/ng1-thais-popup.js` gère l’ouverture/fermeture, ferme les autres popups et supporte les ancres.  
+- Les liens `href="#thais-popup=slug"` ouvrent directement la modale correspondante, y compris au chargement de page (hash initial ou changement d’ancre).  
+- Les éléments `.open-disponibilite` existants continuent de fonctionner en fallback.
+
+L’attribut `id_room_auto="true"` permet, sur un CPT `chambres`, de remplir automatiquement `id_room_type` à partir du champ ACF/meta `thais_id`. Les valeurs vides ou `0` sont ignorées pour éviter les IDs invalides.
 
 ## Shortcode widget avec formulaire
 
